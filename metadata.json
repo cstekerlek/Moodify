@@ -1,0 +1,6 @@
+{
+  "name": "Moodify",
+  "description": "Açık müzik veri seti ses özellikleri mimarisiyle duygu durumuna göre kişiselleştirilmiş çalma listeleri üreten müzik keşif ve analiz uygulaması.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
