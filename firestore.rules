@@ -1,0 +1,245 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isVerifiedUser() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'cstekerlek@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isOptString(data, field, maxLen) {
+      return !(field in data) || data[field] == null || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function isOptNumber(data, field, minVal, maxVal) {
+      return !(field in data) || data[field] == null || (data[field] is number && data[field] >= minVal && data[field] <= maxVal);
+    }
+
+    // Validation Blueprints
+    function isValidMoodCategory(data) {
+      return data.keys().hasAll(['id', 'name', 'colorKey', 'description', 'targetValence', 'targetEnergy', 'targetTempo', 'active', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'name', 'colorKey', 'description', 'coverUrl', 'targetValence', 'targetEnergy', 'targetDanceability', 'targetAcousticness', 'targetTempo', 'order', 'active', 'updatedAt'])
+        && isValidId(data.id)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
+        && data.colorKey is string && data.colorKey in ['orange', 'gray', 'blue', 'red', 'green', 'purple', 'teal', 'amber']
+        && data.description is string && data.description.size() >= 1 && data.description.size() <= 240
+        && isOptString(data, 'coverUrl', 500)
+        && data.targetValence is number && data.targetValence >= 0 && data.targetValence <= 1
+        && data.targetEnergy is number && data.targetEnergy >= 0 && data.targetEnergy <= 1
+        && isOptNumber(data, 'targetDanceability', 0, 1)
+        && isOptNumber(data, 'targetAcousticness', 0, 1)
+        && data.targetTempo is number && data.targetTempo >= 40 && data.targetTempo <= 230
+        && isOptNumber(data, 'order', 0, 100)
+        && data.active is bool
+        && data.updatedAt == request.time;
+    }
+
+    function isValidLanguageItem(data) {
+      return data.keys().hasAll(['code', 'name', 'nativeName', 'active', 'updatedAt'])
+        && data.keys().hasOnly(['code', 'name', 'nativeName', 'active', 'order', 'updatedAt'])
+        && data.code is string && data.code.size() >= 2 && data.code.size() <= 16 && data.code.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 60
+        && data.nativeName is string && data.nativeName.size() >= 1 && data.nativeName.size() <= 60
+        && data.active is bool
+        && isOptNumber(data, 'order', 0, 200)
+        && data.updatedAt == request.time;
+    }
+
+    function isValidCustomTrack(data) {
+      return data.keys().hasAll(['id', 'title', 'artist', 'genre', 'language', 'deleted', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'title', 'artist', 'album', 'genre', 'language', 'year', 'coverUrl', 'valence', 'energy', 'danceability', 'acousticness', 'tempo', 'deleted', 'updatedAt'])
+        && isValidId(data.id)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 180
+        && data.artist is string && data.artist.size() >= 1 && data.artist.size() <= 180
+        && isOptString(data, 'album', 180)
+        && data.genre is string && data.genre.size() >= 1 && data.genre.size() <= 64
+        && data.language is string && data.language.size() >= 2 && data.language.size() <= 16
+        && isOptNumber(data, 'year', 1900, 2100)
+        && isOptString(data, 'coverUrl', 500)
+        && isOptNumber(data, 'valence', 0, 1)
+        && isOptNumber(data, 'energy', 0, 1)
+        && isOptNumber(data, 'danceability', 0, 1)
+        && isOptNumber(data, 'acousticness', 0, 1)
+        && isOptNumber(data, 'tempo', 40, 240)
+        && data.deleted is bool
+        && data.updatedAt == request.time;
+    }
+
+    function isValidCuratedPlaylist(data) {
+      return data.keys().hasAll(['id', 'title', 'description', 'moodId', 'trackIds', 'featured', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'title', 'description', 'moodId', 'language', 'coverUrl', 'trackIds', 'featured', 'updatedAt'])
+        && isValidId(data.id)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+        && data.description is string && data.description.size() >= 1 && data.description.size() <= 300
+        && data.moodId is string && data.moodId.size() >= 1 && data.moodId.size() <= 64
+        && isOptString(data, 'language', 16)
+        && isOptString(data, 'coverUrl', 500)
+        && data.trackIds is list && data.trackIds.size() <= 80 && (data.trackIds.size() == 0 || data.trackIds[0] is string)
+        && data.featured is bool
+        && data.updatedAt == request.time;
+    }
+
+    function isValidUserProfile(data, uid) {
+      return data.keys().hasAll(['uid', 'displayName', 'onboardingSeen', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'photoURL', 'preferredLanguages', 'preferredGenres', 'recentViews', 'onboardingSeen', 'streakCount', 'lastVisitDate', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid == uid && data.uid == request.auth.uid
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && isOptString(data, 'photoURL', 500)
+        && (!('preferredLanguages' in data) || (data.preferredLanguages is list && data.preferredLanguages.size() <= 20 && (data.preferredLanguages.size() == 0 || data.preferredLanguages[0] is string)))
+        && (!('preferredGenres' in data) || (data.preferredGenres is list && data.preferredGenres.size() <= 30 && (data.preferredGenres.size() == 0 || data.preferredGenres[0] is string)))
+        && (!('recentViews' in data) || (data.recentViews is list && data.recentViews.size() <= 25 && (data.recentViews.size() == 0 || data.recentViews[0] is string)))
+        && data.onboardingSeen is bool
+        && isOptNumber(data, 'streakCount', 0, 10000)
+        && isOptString(data, 'lastVisitDate', 20)
+        && data.updatedAt == request.time;
+    }
+
+    function isValidFavoriteTrack(data, uid) {
+      return data.keys().hasAll(['uid', 'trackId', 'title', 'artist', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'trackId', 'title', 'artist', 'album', 'genre', 'language', 'coverUrl', 'valence', 'energy', 'danceability', 'acousticness', 'tempo', 'createdAt'])
+        && data.uid is string && data.uid == uid && data.uid == request.auth.uid
+        && isValidId(data.trackId)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 180
+        && data.artist is string && data.artist.size() >= 1 && data.artist.size() <= 180
+        && isOptString(data, 'album', 180)
+        && isOptString(data, 'genre', 64)
+        && isOptString(data, 'language', 16)
+        && isOptString(data, 'coverUrl', 500)
+        && isOptNumber(data, 'valence', 0, 1)
+        && isOptNumber(data, 'energy', 0, 1)
+        && isOptNumber(data, 'danceability', 0, 1)
+        && isOptNumber(data, 'acousticness', 0, 1)
+        && isOptNumber(data, 'tempo', 40, 240);
+    }
+
+    function isValidUserPlaylist(data, uid) {
+      return data.keys().hasAll(['uid', 'id', 'name', 'trackIds', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'id', 'name', 'description', 'moodId', 'language', 'coverUrl', 'trackIds', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid == uid && data.uid == request.auth.uid
+        && isValidId(data.id)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && isOptString(data, 'description', 300)
+        && isOptString(data, 'moodId', 64)
+        && isOptString(data, 'language', 16)
+        && isOptString(data, 'coverUrl', 500)
+        && data.trackIds is list && data.trackIds.size() <= 100 && (data.trackIds.size() == 0 || data.trackIds[0] is string)
+        && data.updatedAt == request.time;
+    }
+
+    // Startup connection check document
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // Public Catalog Collections (Admin Managed)
+    match /moodCategories/{categoryId} {
+      allow get: if isValidId(categoryId);
+      allow list: if true;
+      allow create: if isAdmin() && isValidId(categoryId) && isValidMoodCategory(incoming());
+      allow update: if isAdmin() && isValidId(categoryId) && isValidMoodCategory(incoming())
+        && incoming().id == existing().id
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'colorKey', 'description', 'coverUrl', 'targetValence', 'targetEnergy', 'targetDanceability', 'targetAcousticness', 'targetTempo', 'order', 'active', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(categoryId);
+    }
+
+    match /languages/{langCode} {
+      allow get: if isValidId(langCode);
+      allow list: if true;
+      allow create: if isAdmin() && isValidId(langCode) && isValidLanguageItem(incoming());
+      allow update: if isAdmin() && isValidId(langCode) && isValidLanguageItem(incoming())
+        && incoming().code == existing().code
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'nativeName', 'active', 'order', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(langCode);
+    }
+
+    match /customTracks/{trackId} {
+      allow get: if isValidId(trackId);
+      allow list: if true;
+      allow create: if isAdmin() && isValidId(trackId) && isValidCustomTrack(incoming());
+      allow update: if isAdmin() && isValidId(trackId) && isValidCustomTrack(incoming())
+        && incoming().id == existing().id
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'artist', 'album', 'genre', 'language', 'year', 'coverUrl', 'valence', 'energy', 'danceability', 'acousticness', 'tempo', 'deleted', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(trackId);
+    }
+
+    match /curatedPlaylists/{playlistId} {
+      allow get: if isValidId(playlistId);
+      allow list: if true;
+      allow create: if isAdmin() && isValidId(playlistId) && isValidCuratedPlaylist(incoming());
+      allow update: if isAdmin() && isValidId(playlistId) && isValidCuratedPlaylist(incoming())
+        && incoming().id == existing().id
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'moodId', 'language', 'coverUrl', 'trackIds', 'featured', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(playlistId);
+    }
+
+    // Admin Registry
+    match /admins/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if false;
+      allow write: if false;
+    }
+
+    // User Profiles & Personal Libraries (Strictly Isolated by Owner)
+    match /users/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isOwner(uid) && isValidId(uid) && isValidUserProfile(incoming(), uid) && incoming().createdAt == request.time;
+      allow update: if isOwner(uid) && isValidId(uid) && isValidUserProfile(incoming(), uid)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'preferredLanguages', 'preferredGenres', 'recentViews', 'onboardingSeen', 'streakCount', 'lastVisitDate', 'updatedAt']);
+      allow delete: if isOwner(uid) && isValidId(uid);
+
+      match /favorites/{trackId} {
+        allow get: if isValidId(uid) && isValidId(trackId) && isOwner(uid);
+        allow list: if isOwner(uid) && resource.data.uid == request.auth.uid;
+        allow create: if isOwner(uid) && isValidId(uid) && isValidId(trackId) && isValidFavoriteTrack(incoming(), uid) && incoming().createdAt == request.time;
+        allow update: if false;
+        allow delete: if isOwner(uid) && isValidId(uid) && isValidId(trackId);
+      }
+
+      match /playlists/{playlistId} {
+        allow get: if isValidId(uid) && isValidId(playlistId) && isOwner(uid);
+        allow list: if isOwner(uid) && resource.data.uid == request.auth.uid;
+        allow create: if isOwner(uid) && isValidId(uid) && isValidId(playlistId) && isValidUserPlaylist(incoming(), uid) && incoming().createdAt == request.time;
+        allow update: if isOwner(uid) && isValidId(uid) && isValidId(playlistId) && isValidUserPlaylist(incoming(), uid)
+          && incoming().uid == existing().uid
+          && incoming().id == existing().id
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'moodId', 'language', 'coverUrl', 'trackIds', 'updatedAt']);
+        allow delete: if isOwner(uid) && isValidId(uid) && isValidId(playlistId);
+      }
+    }
+  }
+}

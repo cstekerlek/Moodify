@@ -1,0 +1,182 @@
+{
+  "entities": {
+    "MoodCategory": {
+      "title": "MoodCategory",
+      "description": "Ruh hâli kategorisi tanımı ve hedef ses öznitelikleri",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "colorKey": { "type": "string", "enum": ["orange", "gray", "blue", "red", "green", "purple", "teal", "amber"] },
+        "description": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "coverUrl": { "type": "string", "maxLength": 500 },
+        "targetValence": { "type": "number" },
+        "targetEnergy": { "type": "number" },
+        "targetDanceability": { "type": "number" },
+        "targetAcousticness": { "type": "number" },
+        "targetTempo": { "type": "number" },
+        "order": { "type": "number" },
+        "active": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "colorKey", "description", "targetValence", "targetEnergy", "targetTempo", "active", "updatedAt"]
+    },
+    "LanguageItem": {
+      "title": "LanguageItem",
+      "description": "Desteklenen müzik dili ve aktiflik durumu",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "minLength": 2, "maxLength": 16, "pattern": "^[a-zA-Z0-9_-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "nativeName": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "active": { "type": "boolean" },
+        "order": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "name", "nativeName", "active", "updatedAt"]
+    },
+    "CustomTrack": {
+      "title": "CustomTrack",
+      "description": "Admin tarafından eklenen veya düzenlenen şarkı kaydı",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[a-zA-Z0-9_-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "artist": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "album": { "type": "string", "maxLength": 180 },
+        "genre": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "language": { "type": "string", "minLength": 2, "maxLength": 16 },
+        "year": { "type": "number" },
+        "coverUrl": { "type": "string", "maxLength": 500 },
+        "valence": { "type": "number" },
+        "energy": { "type": "number" },
+        "danceability": { "type": "number" },
+        "acousticness": { "type": "number" },
+        "tempo": { "type": "number" },
+        "deleted": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "artist", "genre", "language", "deleted", "updatedAt"]
+    },
+    "CuratedPlaylist": {
+      "title": "CuratedPlaylist",
+      "description": "Admin tarafından yönetilen kürasyon çalma listesi",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 100, "pattern": "^[a-zA-Z0-9_-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "moodId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "language": { "type": "string", "maxLength": 16 },
+        "coverUrl": { "type": "string", "maxLength": 500 },
+        "trackIds": { "type": "array", "description": "Max 80 track IDs" },
+        "featured": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "description", "moodId", "trackIds", "featured", "updatedAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Kullanıcı tercihleri ve profil bilgileri",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "preferredLanguages": { "type": "array", "description": "Max 20 language codes" },
+        "preferredGenres": { "type": "array", "description": "Max 30 genre names" },
+        "recentViews": { "type": "array", "description": "Max 25 recent track or playlist IDs" },
+        "onboardingSeen": { "type": "boolean" },
+        "streakCount": { "type": "number" },
+        "lastVisitDate": { "type": "string", "maxLength": 20 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "onboardingSeen", "createdAt", "updatedAt"]
+    },
+    "FavoriteTrack": {
+      "title": "FavoriteTrack",
+      "description": "Kullanıcının favori şarkı kaydı",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "trackId": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "artist": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "album": { "type": "string", "maxLength": 180 },
+        "genre": { "type": "string", "maxLength": 64 },
+        "language": { "type": "string", "maxLength": 16 },
+        "coverUrl": { "type": "string", "maxLength": 500 },
+        "valence": { "type": "number" },
+        "energy": { "type": "number" },
+        "danceability": { "type": "number" },
+        "acousticness": { "type": "number" },
+        "tempo": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "trackId", "title", "artist", "createdAt"]
+    },
+    "UserPlaylist": {
+      "title": "UserPlaylist",
+      "description": "Kullanıcının oluşturduğu veya kaydettiği çalma listesi",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "id": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "description": { "type": "string", "maxLength": 300 },
+        "moodId": { "type": "string", "maxLength": 64 },
+        "language": { "type": "string", "maxLength": 16 },
+        "coverUrl": { "type": "string", "maxLength": 500 },
+        "trackIds": { "type": "array", "description": "Max 100 track IDs" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "id", "name", "trackIds", "createdAt", "updatedAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Yetkili yönetici UID kaydı",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["uid", "active"]
+    }
+  },
+  "firestore": {
+    "/moodCategories/{categoryId}": {
+      "schema": { "$ref": "#/entities/MoodCategory" },
+      "description": "Herkese açık okunabilir, yalnızca admin tarafından yönetilen ruh hâli kategorileri"
+    },
+    "/languages/{langCode}": {
+      "schema": { "$ref": "#/entities/LanguageItem" },
+      "description": "Herkese açık okunabilir, yalnızca admin tarafından yönetilen müzik dilleri"
+    },
+    "/customTracks/{trackId}": {
+      "schema": { "$ref": "#/entities/CustomTrack" },
+      "description": "Admin tarafından eklenen veya güncellenen şarkı kayıtları"
+    },
+    "/curatedPlaylists/{playlistId}": {
+      "schema": { "$ref": "#/entities/CuratedPlaylist" },
+      "description": "Admin tarafından oluşturulan öne çıkan çalma listeleri"
+    },
+    "/admins/{uid}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Yetkili yönetici doğrulama belgeleri"
+    },
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Kullanıcı profili ve dil/tür tercihleri (yalnızca sahibi okuyabilir/yazabilir)"
+    },
+    "/users/{uid}/favorites/{trackId}": {
+      "schema": { "$ref": "#/entities/FavoriteTrack" },
+      "description": "Kullanıcının favori şarkıları"
+    },
+    "/users/{uid}/playlists/{playlistId}": {
+      "schema": { "$ref": "#/entities/UserPlaylist" },
+      "description": "Kullanıcının kendi oluşturduğu ve kaydettiği çalma listeleri"
+    }
+  }
+}

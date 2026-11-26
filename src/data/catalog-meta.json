@@ -1,0 +1,69 @@
+{
+  "totalUniqueTracks": 7096,
+  "preservedBaseTracks": 468,
+  "verifiedAudioFeatureTracks": 6882,
+  "minimumRequirementMet": true,
+  "generatedAt": "2026-11-19T13:08:05.471Z",
+  "sources": [
+    {
+      "name": "Spotify Tracks Dataset (Kaggle / HuggingFace)",
+      "url": "https://huggingface.co/datasets/maharshipandya/spotify-tracks-dataset",
+      "license": "CC0 / Public Open Dataset"
+    },
+    {
+      "name": "Moodify Başlangıç Veri Seti (v1)",
+      "url": "local://RAW_OPEN_TRACKS",
+      "license": "Open Audio Metadata Reference"
+    },
+    {
+      "name": "iTunes Search API (Çok Dilli Katalog & Kapak Doğrulaması)",
+      "url": "https://itunes.apple.com/search",
+      "license": "Apple iTunes Search Public API"
+    }
+  ],
+  "byLanguage": {
+    "en": 3299,
+    "tr": 1095,
+    "pt": 283,
+    "fr": 280,
+    "es": 460,
+    "de": 167,
+    "it": 158,
+    "ko": 279,
+    "ja": 380,
+    "ru": 240,
+    "hi": 220,
+    "nl": 83,
+    "el": 83,
+    "ar": 69
+  },
+  "byGenre": {
+    "Pop": 1371,
+    "R&B": 219,
+    "Dance": 477,
+    "Rock": 295,
+    "Indie": 326,
+    "Türkçe Pop": 675,
+    "Türk Halk Müziği": 23,
+    "Jazz": 131,
+    "Electronic": 227,
+    "Folk": 327,
+    "Acoustic": 432,
+    "Türkçe Rock": 220,
+    "Türk Sanat Müziği": 34,
+    "Ambient": 205,
+    "Alternative": 273,
+    "Classical": 379,
+    "Soundtrack": 462,
+    "Lo-fi": 164,
+    "Hip-hop": 81,
+    "Rap": 43,
+    "House": 170,
+    "Türkçe Rap": 130,
+    "Metal": 130,
+    "Techno": 86,
+    "Arabesk": 11,
+    "Blues": 110,
+    "Reggae": 110
+  }
+}
