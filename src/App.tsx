@@ -244,6 +244,7 @@ export default function App() {
   const [playlistModalOpen, setPlaylistModalOpen] = React.useState(false);
   const [editingUserPlaylist, setEditingUserPlaylist] = React.useState<UserPlaylist | null>(null);
   const [trackForPlaylistModal, setTrackForPlaylistModal] = React.useState<Track | null>(null);
+  const [initialReadMeDismissed, setInitialReadMeDismissed] = React.useState(false);
   const [showOnboardingForce, setShowOnboardingForce] = React.useState(false);
   const [toast, setToast] = React.useState<{ msg: string; tone: 'success' | 'error' } | null>(null);
 
@@ -1088,6 +1089,8 @@ export default function App() {
   };
 
   const handleDismissReadMe = React.useCallback(() => {
+    setInitialReadMeDismissed(true);
+    setShowOnboardingForce(false);
     try {
       localStorage.setItem(README_SEEN_KEY, 'true');
       if (!firebaseUser) {
@@ -1100,7 +1103,6 @@ export default function App() {
     } catch {
       // ignore
     }
-    setShowOnboardingForce(false);
     if (!profile.onboardingSeen) {
       handleUpdateProfile({ onboardingSeen: true });
     }
@@ -1108,8 +1110,8 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [firebaseUser, profile, favorites, userPlaylists, handleUpdateProfile]);
 
-  // First launch gate: show ONLY the Read Me popup first before revealing the rest of the app
-  if (!profile.onboardingSeen) {
+  // Every app entry gate: show ONLY the Read Me popup first before revealing the rest of the app
+  if (!initialReadMeDismissed) {
     return <OnboardingScreen isInitialGate onStart={handleDismissReadMe} />;
   }
 
@@ -1361,6 +1363,7 @@ export default function App() {
                   onAddToPlaylist={(track) => setTrackForPlaylistModal(track)}
                   onInspectTrack={handleInspectTrack}
                   getPlaylistTrackCount={(pl) => resolvePlaylistTracks(pl).length}
+                  onNotifyReady={showToast}
                 />
               )}
 
@@ -1415,6 +1418,7 @@ export default function App() {
                   onToggleFavorite={handleToggleFavorite}
                   onAddToPlaylist={(track) => setTrackForPlaylistModal(track)}
                   onInspectTrack={handleInspectTrack}
+                  onNotifyReady={showToast}
                 />
               )}
 
@@ -1450,6 +1454,7 @@ export default function App() {
                   onToggleFavorite={handleToggleFavorite}
                   onAddToPlaylist={(track) => setTrackForPlaylistModal(track)}
                   onInspectTrack={handleInspectTrack}
+                  onNotifyReady={showToast}
                 />
               )}
 
@@ -1479,6 +1484,7 @@ export default function App() {
                   onToggleFavorite={handleToggleFavorite}
                   onAddToPlaylist={(track) => setTrackForPlaylistModal(track)}
                   onInspectTrack={handleInspectTrack}
+                  onNotifyReady={showToast}
                 />
               )}
 
@@ -1710,6 +1716,7 @@ export default function App() {
         <div
           role="status"
           aria-live="polite"
+          data-testid="moodify-toast"
           className={`fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-xl shadow-lg text-xs sm:text-sm font-bold text-white whitespace-nowrap ${
             toast.tone === 'error' ? 'bg-rose-600' : 'bg-gradient-to-r from-[#B97891] to-[#D8A1B3]'
           }`}

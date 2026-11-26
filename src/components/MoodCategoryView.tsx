@@ -1,6 +1,7 @@
 import React from 'react';
-import { ArrowLeft, BookmarkPlus, Globe2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, BookmarkPlus, Globe2, Loader2, RefreshCw } from 'lucide-react';
 import { CORE_LANGUAGE_CODES, MOOD_COLOR_THEMES } from '../constants/musicConfig';
+import { formatSelectedLanguagesLabel, useRecommendationFeedback } from '../hooks/useRecommendationFeedback';
 import type { CuratedPlaylist, LanguageConfig, MoodCategory, Track } from '../types/music';
 import { PlaylistCover } from './PlaylistCover';
 import { TrackRowCard } from './TrackRowCard';
@@ -21,6 +22,7 @@ interface MoodCategoryViewProps {
   onAddToPlaylist: (track: Track) => void;
   onInspectTrack: (track: Track) => void;
   getPlaylistTrackCount: (pl: CuratedPlaylist) => number;
+  onNotifyReady?: (msg: string) => void;
 }
 
 export const MoodCategoryView: React.FC<MoodCategoryViewProps> = ({
@@ -39,11 +41,32 @@ export const MoodCategoryView: React.FC<MoodCategoryViewProps> = ({
   onAddToPlaylist,
   onInspectTrack,
   getPlaylistTrackCount,
+  onNotifyReady,
 }) => {
   const theme = MOOD_COLOR_THEMES[category.colorKey] || MOOD_COLOR_THEMES.blue;
   const activeLangs = languages.filter((l) => l.active);
   const coreLangs = activeLangs.filter((l) => CORE_LANGUAGE_CODES.includes(l.code));
   const isMixed = selectedLanguages.length === 0 || selectedLanguages.includes('mixed');
+  const languageLabel = formatSelectedLanguagesLabel(selectedLanguages, languages);
+
+  const { resultsRef, isUpdating, animGen, triggerUpdate, cancelPending } = useRecommendationFeedback({
+    tracks: recommendedTracks,
+    onNotifyReady,
+  });
+
+  React.useEffect(() => {
+    cancelPending();
+  }, [category.id, cancelPending]);
+
+  const handleLanguageClick = (code: string) => {
+    if (code === 'mixed' && isMixed) return;
+    triggerUpdate(() => onToggleLanguage(code));
+  };
+
+  const handleRefreshClick = () => {
+    if (isUpdating) return;
+    triggerUpdate(onRefreshTracks);
+  };
 
   return (
     <div className={`rounded-3xl p-4 sm:p-6 space-y-5 border ${theme.borderAccent} ${theme.pageAtmosphere}`}>
@@ -86,11 +109,13 @@ export const MoodCategoryView: React.FC<MoodCategoryViewProps> = ({
             <div className="pt-1 flex flex-wrap items-center gap-2.5">
               <button
                 type="button"
-                onClick={onRefreshTracks}
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-white text-xs sm:text-sm font-bold transition-colors cursor-pointer shadow-xs ${theme.bgSolid}`}
+                disabled={isUpdating}
+                onClick={handleRefreshClick}
+                data-testid="mood-refresh-button"
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-white text-xs sm:text-sm font-bold transition-colors cursor-pointer shadow-xs disabled:opacity-75 ${theme.bgSolid}`}
               >
-                <RefreshCw className="w-4 h-4" />
-                <span>Önerileri Yenile</span>
+                <RefreshCw className={`w-4 h-4 ${isUpdating ? 'animate-spin' : ''}`} />
+                <span>{isUpdating ? 'Yenileniyor...' : 'Önerileri Yenile'}</span>
               </button>
               <button
                 type="button"
@@ -112,7 +137,7 @@ export const MoodCategoryView: React.FC<MoodCategoryViewProps> = ({
           </span>
           <button
             type="button"
-            onClick={() => onToggleLanguage('mixed')}
+            onClick={() => handleLanguageClick('mixed')}
             className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
               isMixed
                 ? `${theme.bgSolid} text-white`
@@ -127,7 +152,7 @@ export const MoodCategoryView: React.FC<MoodCategoryViewProps> = ({
               <button
                 key={lang.code}
                 type="button"
-                onClick={() => onToggleLanguage(lang.code)}
+                onClick={() => handleLanguageClick(lang.code)}
                 className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                   active
                     ? `${theme.bgSolid} text-white`
@@ -140,7 +165,7 @@ export const MoodCategoryView: React.FC<MoodCategoryViewProps> = ({
           })}
           <button
             type="button"
-            onClick={() => onToggleLanguage('other')}
+            onClick={() => handleLanguageClick('other')}
             className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
               !isMixed && selectedLanguages.includes('other')
                 ? `${theme.bgSolid} text-white`
@@ -189,25 +214,56 @@ export const MoodCategoryView: React.FC<MoodCategoryViewProps> = ({
       )}
 
       {/* Matched Songs */}
-      <section className="space-y-2.5">
-        <h2 className="text-base font-bold text-[#30282D] dark:text-[#FAF4F6]">
-          Sana Özel Önerilen Şarkılar ({recommendedTracks.length})
-        </h2>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
-          {recommendedTracks.map((track, idx) => (
-            <TrackRowCard
-              key={track.id}
-              track={track}
-              index={idx}
-              isFavorite={favoriteIds.has(track.id)}
-              onToggleFavorite={onToggleFavorite}
-              onAddToPlaylist={onAddToPlaylist}
-              onInspectTrack={onInspectTrack}
-              languages={languages}
-              accentColorKey={category.colorKey}
-            />
-          ))}
+      <section ref={resultsRef} data-testid="mood-results-section" className="scroll-mt-20 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2
+              data-testid="results-heading"
+              className="text-base sm:text-lg font-extrabold text-[#30282D] dark:text-[#FAF4F6]"
+            >
+              Yeni müzik önerilerin
+            </h2>
+            <p data-testid="results-meta" className="text-xs sm:text-sm font-medium text-[#5B4D54] dark:text-[#DFD1D7]">
+              {category.name} · {languageLabel} · {recommendedTracks.length} Şarkı
+            </p>
+          </div>
+          {isUpdating && (
+            <span
+              data-testid="results-loading-badge"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/90 dark:bg-[#211A1E] border border-[#E6DADE] dark:border-[#3D3037] text-xs font-bold text-[#9F5C76] dark:text-[#E5B8C7]"
+            >
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>Öneriler güncelleniyor...</span>
+            </span>
+          )}
         </div>
+
+        {recommendedTracks.length === 0 && !isUpdating ? (
+          <div className="rounded-2xl border border-[#EDE2E5] dark:border-[#362A31] bg-white/85 dark:bg-[#211A1E] p-6 text-center text-sm text-[#5B4D54] dark:text-[#DFD1D7]">
+            Seçili dil filtresi için eşleşen şarkı bulunamadı. Farklı bir dil seçmeyi deneyebilirsin.
+          </div>
+        ) : (
+          <div
+            key={animGen}
+            className={`grid grid-cols-1 lg:grid-cols-2 gap-2.5 ${
+              animGen > 0 ? 'animate-tracks-enter' : ''
+            } ${isUpdating ? 'opacity-55 transition-opacity' : ''}`}
+          >
+            {recommendedTracks.map((track, idx) => (
+              <TrackRowCard
+                key={track.id}
+                track={track}
+                index={idx}
+                isFavorite={favoriteIds.has(track.id)}
+                onToggleFavorite={onToggleFavorite}
+                onAddToPlaylist={onAddToPlaylist}
+                onInspectTrack={onInspectTrack}
+                languages={languages}
+                accentColorKey={category.colorKey}
+              />
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

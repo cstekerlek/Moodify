@@ -1,6 +1,7 @@
 import React from 'react';
-import { ArrowLeft, ArrowRight, BookmarkPlus, Clapperboard, Globe2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookmarkPlus, Clapperboard, Globe2, Loader2, RefreshCw } from 'lucide-react';
 import { CORE_LANGUAGE_CODES, MOOD_COLOR_THEMES } from '../constants/musicConfig';
+import { formatSelectedLanguagesLabel, useRecommendationFeedback } from '../hooks/useRecommendationFeedback';
 import type { CinemaScene, LanguageConfig, MoodCategory, Track } from '../types/music';
 import { PlatformButtons } from './PlatformButtons';
 import { TrackRowCard } from './TrackRowCard';
@@ -89,6 +90,7 @@ interface CinemaDetailViewProps {
   onToggleFavorite: (track: Track) => void;
   onAddToPlaylist: (track: Track) => void;
   onInspectTrack: (track: Track) => void;
+  onNotifyReady?: (msg: string) => void;
 }
 
 export const CinemaDetailView: React.FC<CinemaDetailViewProps> = ({
@@ -105,12 +107,33 @@ export const CinemaDetailView: React.FC<CinemaDetailViewProps> = ({
   onToggleFavorite,
   onAddToPlaylist,
   onInspectTrack,
+  onNotifyReady,
 }) => {
   const colorKey = category?.colorKey || 'rose';
   const theme = MOOD_COLOR_THEMES[colorKey] || MOOD_COLOR_THEMES.rose;
   const activeLangs = languages.filter((l) => l.active);
   const coreLangs = activeLangs.filter((l) => CORE_LANGUAGE_CODES.includes(l.code));
   const isMixed = selectedLanguages.length === 0 || selectedLanguages.includes('mixed');
+  const languageLabel = formatSelectedLanguagesLabel(selectedLanguages, languages);
+
+  const { resultsRef, isUpdating, animGen, triggerUpdate, cancelPending } = useRecommendationFeedback({
+    tracks,
+    onNotifyReady,
+  });
+
+  React.useEffect(() => {
+    cancelPending();
+  }, [scene.id, cancelPending]);
+
+  const handleLanguageClick = (code: string) => {
+    if (code === 'mixed' && isMixed) return;
+    triggerUpdate(() => onToggleLanguage(code));
+  };
+
+  const handleRefreshClick = () => {
+    if (isUpdating) return;
+    triggerUpdate(onRefresh);
+  };
 
   return (
     <div className="space-y-5">
@@ -152,11 +175,13 @@ export const CinemaDetailView: React.FC<CinemaDetailViewProps> = ({
           <div className="flex flex-wrap items-center gap-2.5">
             <button
               type="button"
-              onClick={onRefresh}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#B97891] to-[#D8A1B3] hover:from-[#A6657E] hover:to-[#C88EA1] text-white text-xs sm:text-sm font-bold transition-colors cursor-pointer shadow"
+              disabled={isUpdating}
+              onClick={handleRefreshClick}
+              data-testid="cinema-refresh-button"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#B97891] to-[#D8A1B3] hover:from-[#A6657E] hover:to-[#C88EA1] text-white text-xs sm:text-sm font-bold transition-colors cursor-pointer shadow disabled:opacity-75"
             >
-              <RefreshCw className="w-4 h-4" />
-              <span>Sahneyi Yenile</span>
+              <RefreshCw className={`w-4 h-4 ${isUpdating ? 'animate-spin' : ''}`} />
+              <span>{isUpdating ? 'Yenileniyor...' : 'Sahneyi Yenile'}</span>
             </button>
             <button
               type="button"
@@ -176,7 +201,7 @@ export const CinemaDetailView: React.FC<CinemaDetailViewProps> = ({
             </span>
             <button
               type="button"
-              onClick={() => onToggleLanguage('mixed')}
+              onClick={() => handleLanguageClick('mixed')}
               className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
                 isMixed ? 'bg-[#FAF6F5] text-[#30282D]' : 'bg-white/15 text-white hover:bg-white/25'
               }`}
@@ -189,7 +214,7 @@ export const CinemaDetailView: React.FC<CinemaDetailViewProps> = ({
                 <button
                   key={lang.code}
                   type="button"
-                  onClick={() => onToggleLanguage(lang.code)}
+                  onClick={() => handleLanguageClick(lang.code)}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
                     active
                       ? 'bg-gradient-to-r from-[#B97891] to-[#D8A1B3] text-white'
@@ -202,7 +227,7 @@ export const CinemaDetailView: React.FC<CinemaDetailViewProps> = ({
             })}
             <button
               type="button"
-              onClick={() => onToggleLanguage('other')}
+              onClick={() => handleLanguageClick('other')}
               className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
                 !isMixed && selectedLanguages.includes('other')
                   ? 'bg-gradient-to-r from-[#B97891] to-[#D8A1B3] text-white'
@@ -221,25 +246,56 @@ export const CinemaDetailView: React.FC<CinemaDetailViewProps> = ({
       </section>
 
       {/* Scene Tracks */}
-      <section className="space-y-2.5">
-        <h2 className="text-base sm:text-lg font-bold text-[#30282D] dark:text-[#FAF4F6]">
-          Sahne Müzikleri ({tracks.length})
-        </h2>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
-          {tracks.map((track, idx) => (
-            <TrackRowCard
-              key={track.id}
-              track={track}
-              index={idx}
-              isFavorite={favoriteIds.has(track.id)}
-              onToggleFavorite={onToggleFavorite}
-              onAddToPlaylist={onAddToPlaylist}
-              onInspectTrack={onInspectTrack}
-              languages={languages}
-              accentColorKey={colorKey}
-            />
-          ))}
+      <section ref={resultsRef} data-testid="cinema-results-section" className="scroll-mt-20 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2
+              data-testid="results-heading"
+              className="text-base sm:text-lg font-extrabold text-[#30282D] dark:text-[#FAF4F6]"
+            >
+              Yeni müzik önerilerin
+            </h2>
+            <p data-testid="results-meta" className="text-xs sm:text-sm font-medium text-[#5B4D54] dark:text-[#DFD1D7]">
+              {scene.title.replace(/\.$/, '')} · {languageLabel} · {tracks.length} Şarkı
+            </p>
+          </div>
+          {isUpdating && (
+            <span
+              data-testid="results-loading-badge"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FFFDFC] dark:bg-[#211A1E] border border-[#E6DADE] dark:border-[#3D3037] text-xs font-bold text-[#9F5C76] dark:text-[#E5B8C7]"
+            >
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>Öneriler güncelleniyor...</span>
+            </span>
+          )}
         </div>
+
+        {tracks.length === 0 && !isUpdating ? (
+          <div className="rounded-2xl border border-[#EDE2E5] dark:border-[#362A31] bg-[#FFFDFC] dark:bg-[#211A1E] p-6 text-center text-sm text-[#5B4D54] dark:text-[#DFD1D7]">
+            Seçili dil filtresi için sahneye uygun şarkı bulunamadı. Farklı bir dil seçmeyi deneyebilirsin.
+          </div>
+        ) : (
+          <div
+            key={animGen}
+            className={`grid grid-cols-1 lg:grid-cols-2 gap-2.5 ${
+              animGen > 0 ? 'animate-tracks-enter' : ''
+            } ${isUpdating ? 'opacity-55 transition-opacity' : ''}`}
+          >
+            {tracks.map((track, idx) => (
+              <TrackRowCard
+                key={track.id}
+                track={track}
+                index={idx}
+                isFavorite={favoriteIds.has(track.id)}
+                onToggleFavorite={onToggleFavorite}
+                onAddToPlaylist={onAddToPlaylist}
+                onInspectTrack={onInspectTrack}
+                languages={languages}
+                accentColorKey={colorKey}
+              />
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

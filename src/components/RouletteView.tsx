@@ -1,6 +1,7 @@
 import React from 'react';
-import { BookmarkPlus, Dices, Globe2, RefreshCw, Sparkles } from 'lucide-react';
+import { BookmarkPlus, Dices, Globe2, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { CORE_LANGUAGE_CODES, MOOD_COLOR_THEMES } from '../constants/musicConfig';
+import { formatSelectedLanguagesLabel, useRecommendationFeedback } from '../hooks/useRecommendationFeedback';
 import type { LanguageConfig, MoodCategory, Track } from '../types/music';
 import { TrackRowCard } from './TrackRowCard';
 
@@ -19,6 +20,7 @@ interface RouletteViewProps {
   onToggleFavorite: (track: Track) => void;
   onAddToPlaylist: (track: Track) => void;
   onInspectTrack: (track: Track) => void;
+  onNotifyReady?: (msg: string) => void;
 }
 
 export const RouletteView: React.FC<RouletteViewProps> = ({
@@ -36,11 +38,55 @@ export const RouletteView: React.FC<RouletteViewProps> = ({
   onToggleFavorite,
   onAddToPlaylist,
   onInspectTrack,
+  onNotifyReady,
 }) => {
   const activeCategories = categories.filter((c) => c.active).slice(0, 5);
   const activeLangs = languages.filter((l) => l.active);
   const coreLangs = activeLangs.filter((l) => CORE_LANGUAGE_CODES.includes(l.code));
   const isMixed = selectedLanguages.length === 0 || selectedLanguages.includes('mixed');
+  const languageLabel = formatSelectedLanguagesLabel(selectedLanguages, languages);
+
+  const { resultsRef, isUpdating, animGen, triggerUpdate } = useRecommendationFeedback({
+    tracks: rolledTracks,
+    onNotifyReady,
+    settleDelayMs: 120,
+  });
+
+  const prevSpinningRef = React.useRef(isSpinning);
+  const spinRequestedRef = React.useRef(false);
+  const prevRotationRef = React.useRef(rotationDeg);
+
+  React.useEffect(() => {
+    const justStoppedSpinning = prevSpinningRef.current && !isSpinning;
+    const instantSpinCompleted =
+      !isSpinning &&
+      spinRequestedRef.current &&
+      rotationDeg !== prevRotationRef.current &&
+      Boolean(rolledMood);
+
+    if ((justStoppedSpinning || instantSpinCompleted) && rolledMood) {
+      spinRequestedRef.current = false;
+      triggerUpdate();
+    }
+
+    prevSpinningRef.current = isSpinning;
+    prevRotationRef.current = rotationDeg;
+  }, [isSpinning, rotationDeg, rolledMood, triggerUpdate]);
+
+  const handleSpinClick = () => {
+    if (isSpinning) return;
+    spinRequestedRef.current = true;
+    onSpin();
+  };
+
+  const handleLanguageClick = (code: string) => {
+    if (code === 'mixed' && isMixed) return;
+    if (rolledMood) {
+      triggerUpdate(() => onToggleLanguage(code));
+    } else {
+      onToggleLanguage(code);
+    }
+  };
 
   const winningTheme = rolledMood
     ? MOOD_COLOR_THEMES[rolledMood.colorKey] || MOOD_COLOR_THEMES.rose
@@ -111,7 +157,7 @@ export const RouletteView: React.FC<RouletteViewProps> = ({
                 <button
                   type="button"
                   disabled={isSpinning}
-                  onClick={onSpin}
+                  onClick={handleSpinClick}
                   className="absolute inset-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full bg-[#FFFDFC] dark:bg-[#211A1E] border-4 border-[#B97891] text-[#30282D] dark:text-[#FAF4F6] shadow-md flex flex-col items-center justify-center gap-0.5 hover:scale-105 active:scale-95 transition-transform disabled:opacity-75 cursor-pointer z-10"
                 >
                   <Sparkles className={`w-5 h-5 text-[#B97891] ${isSpinning ? 'animate-spin' : ''}`} />
@@ -134,7 +180,7 @@ export const RouletteView: React.FC<RouletteViewProps> = ({
               <div className="flex flex-wrap gap-1.5">
                 <button
                   type="button"
-                  onClick={() => onToggleLanguage('mixed')}
+                  onClick={() => handleLanguageClick('mixed')}
                   className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
                     isMixed
                       ? 'bg-[#30282D] dark:bg-[#FAF4F6] text-white dark:text-[#30282D]'
@@ -149,7 +195,7 @@ export const RouletteView: React.FC<RouletteViewProps> = ({
                     <button
                       key={lang.code}
                       type="button"
-                      onClick={() => onToggleLanguage(lang.code)}
+                      onClick={() => handleLanguageClick(lang.code)}
                       className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
                         active
                           ? 'bg-gradient-to-r from-[#B97891] to-[#D8A1B3] text-white'
@@ -162,7 +208,7 @@ export const RouletteView: React.FC<RouletteViewProps> = ({
                 })}
                 <button
                   type="button"
-                  onClick={() => onToggleLanguage('other')}
+                  onClick={() => handleLanguageClick('other')}
                   className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
                     !isMixed && selectedLanguages.includes('other')
                       ? 'bg-gradient-to-r from-[#B97891] to-[#D8A1B3] text-white'
@@ -200,7 +246,7 @@ export const RouletteView: React.FC<RouletteViewProps> = ({
                   <button
                     type="button"
                     disabled={isSpinning}
-                    onClick={onSpin}
+                    onClick={handleSpinClick}
                     className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-xs sm:text-sm font-bold cursor-pointer disabled:opacity-60 ${winningTheme.bgSolid}`}
                   >
                     <RefreshCw className={`w-4 h-4 ${isSpinning ? 'animate-spin' : ''}`} />
@@ -227,7 +273,7 @@ export const RouletteView: React.FC<RouletteViewProps> = ({
                 </p>
                 <button
                   type="button"
-                  onClick={onSpin}
+                  onClick={handleSpinClick}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#B97891] to-[#D8A1B3] hover:from-[#A6657E] hover:to-[#C88EA1] text-white text-sm font-bold cursor-pointer shadow-xs"
                 >
                   <Dices className="w-4 h-4" />
@@ -240,26 +286,57 @@ export const RouletteView: React.FC<RouletteViewProps> = ({
       </section>
 
       {/* Rolled Surprise Tracklist */}
-      {rolledMood && rolledTracks.length > 0 && (
-        <section className="space-y-2.5">
-          <h2 className="text-base sm:text-lg font-bold text-[#30282D] dark:text-[#FAF4F6]">
-            Sürpriz Çalma Listen ({rolledTracks.length} şarkı)
-          </h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
-            {rolledTracks.map((track, idx) => (
-              <TrackRowCard
-                key={track.id}
-                track={track}
-                index={idx}
-                isFavorite={favoriteIds.has(track.id)}
-                onToggleFavorite={onToggleFavorite}
-                onAddToPlaylist={onAddToPlaylist}
-                onInspectTrack={onInspectTrack}
-                languages={languages}
-                accentColorKey={rolledMood.colorKey}
-              />
-            ))}
+      {rolledMood && (
+        <section ref={resultsRef} data-testid="roulette-results-section" className="scroll-mt-20 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2
+                data-testid="results-heading"
+                className="text-base sm:text-lg font-extrabold text-[#30282D] dark:text-[#FAF4F6]"
+              >
+                Yeni müzik önerilerin
+              </h2>
+              <p data-testid="results-meta" className="text-xs sm:text-sm font-medium text-[#5B4D54] dark:text-[#DFD1D7]">
+                {rolledMood.name} · {languageLabel} · {rolledTracks.length} Şarkı
+              </p>
+            </div>
+            {(isUpdating || isSpinning) && (
+              <span
+                data-testid="results-loading-badge"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FFFDFC] dark:bg-[#211A1E] border border-[#E6DADE] dark:border-[#3D3037] text-xs font-bold text-[#9F5C76] dark:text-[#E5B8C7]"
+              >
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Öneriler güncelleniyor...</span>
+              </span>
+            )}
           </div>
+
+          {rolledTracks.length === 0 && !isUpdating && !isSpinning ? (
+            <div className="rounded-2xl border border-[#EDE2E5] dark:border-[#362A31] bg-[#FFFDFC] dark:bg-[#211A1E] p-6 text-center text-sm text-[#5B4D54] dark:text-[#DFD1D7]">
+              Seçili dil filtresi için eşleşen şarkı bulunamadı. Farklı bir dil seçip tekrar çevirebilirsin.
+            </div>
+          ) : (
+            <div
+              key={animGen}
+              className={`grid grid-cols-1 lg:grid-cols-2 gap-2.5 ${
+                animGen > 0 ? 'animate-tracks-enter' : ''
+              } ${isUpdating || isSpinning ? 'opacity-55 transition-opacity' : ''}`}
+            >
+              {rolledTracks.map((track, idx) => (
+                <TrackRowCard
+                  key={track.id}
+                  track={track}
+                  index={idx}
+                  isFavorite={favoriteIds.has(track.id)}
+                  onToggleFavorite={onToggleFavorite}
+                  onAddToPlaylist={onAddToPlaylist}
+                  onInspectTrack={onInspectTrack}
+                  languages={languages}
+                  accentColorKey={rolledMood.colorKey}
+                />
+              ))}
+            </div>
+          )}
         </section>
       )}
     </div>

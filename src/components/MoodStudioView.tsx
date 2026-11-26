@@ -1,6 +1,7 @@
 import React from 'react';
-import { BookmarkPlus, ChevronDown, ChevronUp, Layers, RefreshCw, Sparkles } from 'lucide-react';
+import { BookmarkPlus, ChevronDown, ChevronUp, Layers, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { CORE_LANGUAGE_CODES, MOOD_COLOR_THEMES, MUSIC_GENRES } from '../constants/musicConfig';
+import { formatSelectedLanguagesLabel, useRecommendationFeedback } from '../hooks/useRecommendationFeedback';
 import { computeAudioProfileStats } from '../lib/recommendation';
 import type { LanguageConfig, MoodCategory, Track } from '../types/music';
 import { TrackRowCard } from './TrackRowCard';
@@ -25,6 +26,7 @@ interface MoodStudioViewProps {
   onToggleFavorite: (track: Track) => void;
   onAddToPlaylist: (track: Track) => void;
   onInspectTrack: (track: Track) => void;
+  onNotifyReady?: (msg: string) => void;
 }
 
 export const MoodStudioView: React.FC<MoodStudioViewProps> = ({
@@ -47,6 +49,7 @@ export const MoodStudioView: React.FC<MoodStudioViewProps> = ({
   onToggleFavorite,
   onAddToPlaylist,
   onInspectTrack,
+  onNotifyReady,
 }) => {
   const [genresExpanded, setGenresExpanded] = React.useState(false);
   const activeCategories = categories.filter((c) => c.active);
@@ -55,6 +58,39 @@ export const MoodStudioView: React.FC<MoodStudioViewProps> = ({
   const isMixed = selectedLanguages.length === 0 || selectedLanguages.includes('mixed');
   const stats = computeAudioProfileStats(generatedTracks);
   const primaryCat = activeCategories.find((c) => c.id === selectedMoodIds[0]) || activeCategories[0];
+  const selectedMoodNames = activeCategories.filter((c) => selectedMoodIds.includes(c.id)).map((c) => c.name);
+  const moodLabel = selectedMoodNames.length > 0 ? selectedMoodNames.join(' + ') : primaryCat?.name || 'Ruh Hâli';
+  const languageLabel = formatSelectedLanguagesLabel(selectedLanguages, languages);
+
+  const { resultsRef, isUpdating, animGen, triggerUpdate } = useRecommendationFeedback({
+    tracks: generatedTracks,
+    onNotifyReady,
+  });
+
+  const handleMoodClick = (id: string) => {
+    if (!blendMode && selectedMoodIds.length === 1 && selectedMoodIds[0] === id) return;
+    if (blendMode && selectedMoodIds.length === 1 && selectedMoodIds[0] === id) return;
+    triggerUpdate(() => onToggleMood(id));
+  };
+
+  const handleLanguageClick = (code: string) => {
+    if (code === 'mixed' && isMixed) return;
+    triggerUpdate(() => onToggleLanguage(code));
+  };
+
+  const handleEnergyClick = (val: 'all' | 'low' | 'medium' | 'high') => {
+    if (energyFilter === val) return;
+    triggerUpdate(() => onChangeEnergy(val));
+  };
+
+  const handleGenreClick = (genre: string) => {
+    triggerUpdate(() => onToggleGenre(genre));
+  };
+
+  const handleRefreshClick = () => {
+    if (isUpdating) return;
+    triggerUpdate(onRefresh);
+  };
 
   return (
     <div className="space-y-5">
@@ -91,7 +127,7 @@ export const MoodStudioView: React.FC<MoodStudioViewProps> = ({
               <button
                 key={cat.id}
                 type="button"
-                onClick={() => onToggleMood(cat.id)}
+                onClick={() => handleMoodClick(cat.id)}
                 className={`text-left p-2.5 rounded-xl border transition-all cursor-pointer flex items-center gap-2.5 ${
                   active
                     ? `${theme.borderAccent} ${theme.bgSoft} ring-2 ${theme.ringAccent}`
@@ -122,7 +158,7 @@ export const MoodStudioView: React.FC<MoodStudioViewProps> = ({
             <span className="text-xs font-bold text-[#7D6C74] dark:text-[#B9A7B0] mr-1">Dil:</span>
             <button
               type="button"
-              onClick={() => onToggleLanguage('mixed')}
+              onClick={() => handleLanguageClick('mixed')}
               className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
                 isMixed
                   ? 'bg-[#30282D] dark:bg-[#FAF4F6] text-white dark:text-[#30282D]'
@@ -137,7 +173,7 @@ export const MoodStudioView: React.FC<MoodStudioViewProps> = ({
                 <button
                   key={l.code}
                   type="button"
-                  onClick={() => onToggleLanguage(l.code)}
+                  onClick={() => handleLanguageClick(l.code)}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
                     active
                       ? 'bg-gradient-to-r from-[#B97891] to-[#D8A1B3] text-white'
@@ -150,7 +186,7 @@ export const MoodStudioView: React.FC<MoodStudioViewProps> = ({
             })}
             <button
               type="button"
-              onClick={() => onToggleLanguage('other')}
+              onClick={() => handleLanguageClick('other')}
               className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
                 !isMixed && selectedLanguages.includes('other')
                   ? 'bg-gradient-to-r from-[#B97891] to-[#D8A1B3] text-white'
@@ -173,7 +209,7 @@ export const MoodStudioView: React.FC<MoodStudioViewProps> = ({
                 <button
                   key={e.id}
                   type="button"
-                  onClick={() => onChangeEnergy(e.id as 'all' | 'low' | 'medium' | 'high')}
+                  onClick={() => handleEnergyClick(e.id as 'all' | 'low' | 'medium' | 'high')}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
                     energyFilter === e.id
                       ? 'bg-gradient-to-r from-[#B97891] to-[#D8A1B3] text-white'
@@ -204,7 +240,7 @@ export const MoodStudioView: React.FC<MoodStudioViewProps> = ({
                 <button
                   key={genre}
                   type="button"
-                  onClick={() => onToggleGenre(genre)}
+                  onClick={() => handleGenreClick(genre)}
                   className={`px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
                     active
                       ? 'bg-gradient-to-r from-[#B97891] to-[#D8A1B3] text-white'
@@ -242,31 +278,69 @@ export const MoodStudioView: React.FC<MoodStudioViewProps> = ({
             </button>
             <button
               type="button"
-              onClick={onRefresh}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#B97891] to-[#D8A1B3] hover:from-[#A6657E] hover:to-[#C88EA1] text-white text-xs font-bold cursor-pointer"
+              disabled={isUpdating}
+              onClick={handleRefreshClick}
+              data-testid="studio-refresh-button"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#B97891] to-[#D8A1B3] hover:from-[#A6657E] hover:to-[#C88EA1] text-white text-xs font-bold cursor-pointer disabled:opacity-75"
             >
-              <RefreshCw className="w-4 h-4" />
-              <span>Önerileri Yenile</span>
+              <RefreshCw className={`w-4 h-4 ${isUpdating ? 'animate-spin' : ''}`} />
+              <span>{isUpdating ? 'Yenileniyor...' : 'Önerileri Yenile'}</span>
             </button>
           </div>
         </div>
       </section>
 
       {/* Results */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
-        {generatedTracks.map((track, idx) => (
-          <TrackRowCard
-            key={track.id}
-            track={track}
-            index={idx}
-            isFavorite={favoriteIds.has(track.id)}
-            onToggleFavorite={onToggleFavorite}
-            onAddToPlaylist={onAddToPlaylist}
-            onInspectTrack={onInspectTrack}
-            languages={languages}
-            accentColorKey={primaryCat?.colorKey || 'rose'}
-          />
-        ))}
+      <section ref={resultsRef} data-testid="studio-results-section" className="scroll-mt-20 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2
+              data-testid="results-heading"
+              className="text-base sm:text-lg font-extrabold text-[#30282D] dark:text-[#FAF4F6]"
+            >
+              Yeni müzik önerilerin
+            </h2>
+            <p data-testid="results-meta" className="text-xs sm:text-sm font-medium text-[#5B4D54] dark:text-[#DFD1D7]">
+              {moodLabel} · {languageLabel} · {generatedTracks.length} Şarkı
+            </p>
+          </div>
+          {isUpdating && (
+            <span
+              data-testid="results-loading-badge"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FFFDFC] dark:bg-[#211A1E] border border-[#E6DADE] dark:border-[#3D3037] text-xs font-bold text-[#9F5C76] dark:text-[#E5B8C7]"
+            >
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>Öneriler güncelleniyor...</span>
+            </span>
+          )}
+        </div>
+
+        {generatedTracks.length === 0 && !isUpdating ? (
+          <div className="rounded-2xl border border-[#EDE2E5] dark:border-[#362A31] bg-[#FFFDFC] dark:bg-[#211A1E] p-6 text-center text-sm text-[#5B4D54] dark:text-[#DFD1D7]">
+            Seçtiğin filtrelere uygun şarkı bulunamadı. Farklı bir dil, tür veya enerji seviyesi deneyebilirsin.
+          </div>
+        ) : (
+          <div
+            key={animGen}
+            className={`grid grid-cols-1 lg:grid-cols-2 gap-2.5 ${
+              animGen > 0 ? 'animate-tracks-enter' : ''
+            } ${isUpdating ? 'opacity-55 transition-opacity' : ''}`}
+          >
+            {generatedTracks.map((track, idx) => (
+              <TrackRowCard
+                key={track.id}
+                track={track}
+                index={idx}
+                isFavorite={favoriteIds.has(track.id)}
+                onToggleFavorite={onToggleFavorite}
+                onAddToPlaylist={onAddToPlaylist}
+                onInspectTrack={onInspectTrack}
+                languages={languages}
+                accentColorKey={primaryCat?.colorKey || 'rose'}
+              />
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );
